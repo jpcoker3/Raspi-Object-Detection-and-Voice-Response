@@ -9,21 +9,52 @@ import numpy as np
 import sys
 import time
 from threading import Thread
+import queue
 import importlib.util
 import pyttsx3
+from multiprocessing import Process
 #import RPi.GPIO as GPIO
 
-def mySpeak(message):
-    engine = pyttsx3.init()
+#define threads for voice feedback.
+#This implementation significantly increases performance. 
+class TTSThread(Thread):
+    def __init__(self, queue):
+        Thread.__init__(self)
+        self.queue = queue 
+        self.daemon = True
+        self.start()
+    def run(self):
+        tts_engine = pyttsx3.init()
+        tts_engine.startLoop(False)
+        t_running = True
+        while t_running:
+            if self.queue.empty():
+                tts_engine.iterate()
+            else:
+                data = self.queue.get()
+                if data == 'exit':
+                    t_running = False
+                else:
+                    tts_engine.say(data)
+        tts_engine.endLoop()
 
-    engine. setProperty("rate", 150)
-    
-    engine.say('{}'.format(message))
-    engine.runAndWait()
-    
+class States:
+    Search = "search"
+    Found = "found"
+    Phone = "phone"
+    Lost = "lost"
+
+#state machine to handle transitions
+class VisonState:
+    def __init__(self):
+        self.current_state = States.Search
+
+    def transition(self, new_state):
+        self.current_state == new_state
 
 
-mySpeak('''Hey Joe. I am initializing.''')
+
+
 
 
 
@@ -76,7 +107,7 @@ parser.add_argument('--graph', help='Name of the .tflite file, if different than
 parser.add_argument('--labels', help='Name of the labelmap file, if different than labelmap.txt',
                     default='labelmap.txt')
 parser.add_argument('--threshold', help='Minimum confidence threshold for displaying detected objects',
-                    default=0.35)
+                    default=0.55)
 parser.add_argument('--resolution', help='Desired webcam resolution in WxH. If the webcam does not support the resolution entered, errors may occur.',
                     default='1280x720')
 parser.add_argument('--edgetpu', help='Use Coral Edge TPU Accelerator to speed up detection',
@@ -91,6 +122,11 @@ min_conf_threshold = float(args.threshold)
 resW, resH = args.resolution.split('x')
 imW, imH = int(resW), int(resH)
 use_TPU = args.edgetpu
+
+#initialize queue
+q = queue.Queue()
+tts_thread = TTSThread(q)
+
 
 # Import TensorFlow libraries https://github.com/thyagarajank
 # If tflite_runtime is installed, import interpreter from tflite_runtime, else import from regular tensorflow
@@ -162,9 +198,9 @@ time.sleep(1)
 cv2.namedWindow('Object detector', cv2.WINDOW_NORMAL)
 
 # Hold previous object
-last_seen_object = ""
+last_seen_object = []
 
-
+q.put("Hello Joe, I am ready to detect objects")
 #for frame1 in camera.capture_continuous(rawCapture, format="bgr",use_video_port=True):
 while True:
     #GPIO.setmode(GPIO.BCM)
@@ -196,9 +232,14 @@ while True:
     classes = interpreter.get_tensor(output_details[1]['index'])[0] # Class index of detected objects
     scores = interpreter.get_tensor(output_details[2]['index'])[0] # Confidence of detected objects
 
+    # set array of valid detections 
+    valid_detections = []
+
+
     # Loop over all detections and draw detection box if confidence is above minimum threshold
     for i in range(len(scores)):
         if ((scores[i] > min_conf_threshold) and (scores[i] <= 1.0)):
+            valid_detections.append(labels[int(classes[i])])
 
             # Get bounding box coordinates and draw box
             # Interpreter can return coordinates that are outside of image dimensions, need to force them to be within image using max() and min()
@@ -219,11 +260,19 @@ while True:
             cv2.rectangle(frame, (xmin, label_ymin-labelSize[1]-10), (xmin+labelSize[0], label_ymin+baseLine-10), (255, 255, 255), cv2.FILLED) # Draw white box to put label text in
             cv2.putText(frame, label, (xmin, label_ymin-7), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2) # Draw label text
 
- # Look up object name from "labels" array using class index
-            if not last_seen_object == object_name:
-                last_seen_object = object_name
-                if object_name == "person":
-                    mySpeak("Hello Joe, Long time no see!")
+    # check to see if person is detected
+    print(last_seen_object)
+    if len(valid_detections) == 0 or (not "person" in valid_detections or "cell phone" in valid_detections):
+        q.put("goodbye.")
+        last_seen_object.clear()    
+        
+    else: 
+        if "cell phone" in valid_detections and not "cell phone" in last_seen_object:
+            q.put("Hello Joe, I see you are on your phone again! You should take a break.")
+        elif "person" in valid_detections and not "person" in last_seen_object:
+            q.put("Hello Joe, Long time no see!")
+                       
+        last_seen_object = valid_detections
     
 
     # All the results have been drawn on the frame, so it's time to display it.
