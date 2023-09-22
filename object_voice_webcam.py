@@ -38,6 +38,7 @@ class TTSThread(Thread):
                     tts_engine.say(data)
         tts_engine.endLoop()
 
+# store states for state machine
 class States:
     Search = "search"
     Found = "found"
@@ -49,13 +50,66 @@ class VisonState:
     def __init__(self):
         self.current_state = States.Search
 
+    def transition_sound(self, new_state):
+        # get voice lines for the tranistion of states
+        match new_state:
+            case States.Search:
+                pass
+            case States.Found:
+                voice.put("Hello Joe")
+            case States.Phone:
+                voice.put("Get off your phone!")
+            case States.Lost:
+                voice.put("Goodbye Joe")
+        # update state
+        self.current_state == new_state
+        
     def transition(self, new_state):
         self.current_state == new_state
+    
+    def execute(self):
+        match self:
+            # keep searching 
+            case States.Search:
+                valid_detections = get_detections()
+                
+                # only transition when person is present. 
+                if "person" in valid_detections:
+                    self.transition_sound(States.Found)
+                
+                
+                
+            case States.Found:
+                valid_detections = get_detections()
+                
+                # if person holding cell phone
+                if "cell phone" in valid_detections:
+                    self.transition_sound(States.Found)
+                
+                # no person, lost
+                elif not "person" in valid_detections:
+                    self.transition_sound(States.Lost)
+                
+                
+            case States.Phone:
+                valid_detections = get_detections()
+                
+                # no cell phone present
+                if not "cell phone" in valid_detections:
+                    #if person, go to person. no sound needed as it was previously used. 
+                    if "Person" in valid_detections:
+                        self.transition(States.Found)
+                    else:
+                        self.transition(States.Lost)
+                
 
-
-
-
-
+            case States.Lost:
+                valid_detections = get_detections()
+                
+                #go back to looking
+                self.transition(States.Search)
+                
+                
 
 
 class VideoStream:
@@ -98,6 +152,69 @@ class VideoStream:
 	# Indicate that the camera and thread should be stopped
         self.stopped = True
 
+def get_detections():
+    #GPIO.setmode(GPIO.BCM)
+
+    #GPIO.setup(21, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    #input_state = GPIO.input(21)
+    # Start timer (for calculating frame rate)
+    t1 = cv2.getTickCount()
+    
+    # Grab frame from video stream
+    frame1 = videostream.read()
+
+    # Acquire frame and resize to expected shape [1xHxWx3]
+    frame = frame1.copy()
+    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    frame_resized = cv2.resize(frame_rgb, (width, height))
+    input_data = np.expand_dims(frame_resized, axis=0)
+
+    # Normalize pixel values if using a floating model (i.e. if model is non-quantized)
+    if floating_model:
+        input_data = (np.float32(input_data) - input_mean) / input_std
+
+    # Perform the actual detection by running the model with the image as input
+    interpreter.set_tensor(input_details[0]['index'],input_data)
+    interpreter.invoke()
+
+    # Retrieve detection results
+    boxes = interpreter.get_tensor(output_details[0]['index'])[0] # Bounding box coordinates of detected objects
+    classes = interpreter.get_tensor(output_details[1]['index'])[0] # Class index of detected objects
+    scores = interpreter.get_tensor(output_details[2]['index'])[0] # Confidence of detected objects
+
+    # set array of valid detections 
+    valid_detections = []
+
+
+    # Loop over all detections and draw detection box if confidence is above minimum threshold
+    for i in range(len(scores)):
+        if ((scores[i] > min_conf_threshold) and (scores[i] <= 1.0)):
+            valid_detections.append(labels[int(classes[i])])
+
+            # Get bounding box coordinates and draw box
+            # Interpreter can return coordinates that are outside of image dimensions, need to force them to be within image using max() and min()
+            ymin = int(max(1,(boxes[i][0] * imH)))
+            xmin = int(max(1,(boxes[i][1] * imW)))
+            ymax = int(min(imH,(boxes[i][2] * imH)))
+            xmax = int(min(imW,(boxes[i][3] * imW)))
+            
+            cv2.rectangle(frame, (xmin,ymin), (xmax,ymax), (10, 255, 0), 2)
+
+            
+            
+            # Draw label
+            object_name = labels[int(classes[i])] # Look up object name from "labels" array using class index
+            label = '%s: %d%%' % (object_name, int(scores[i]*100)) # Example: 'person: 72%'
+            labelSize, baseLine = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2) # Get font size
+            label_ymin = max(ymin, labelSize[1] + 10) # Make sure not to draw label too close to top of window
+            cv2.rectangle(frame, (xmin, label_ymin-labelSize[1]-10), (xmin+labelSize[0], label_ymin+baseLine-10), (255, 255, 255), cv2.FILLED) # Draw white box to put label text in
+            cv2.putText(frame, label, (xmin, label_ymin-7), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2) # Draw label text
+         # All the results have been drawn on the frame, so it's time to display it.
+    
+    cv2.imshow('Object detector', frame)
+    # Calculate framerate
+    return valid_detections, frame
+
 # Define and parse input arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('--modeldir', help='Folder the .tflite file is located in',
@@ -124,8 +241,8 @@ imW, imH = int(resW), int(resH)
 use_TPU = args.edgetpu
 
 #initialize queue
-q = queue.Queue()
-tts_thread = TTSThread(q)
+voice = queue.Queue()
+tts_thread = TTSThread(voice)
 
 
 # Import TensorFlow libraries https://github.com/thyagarajank
@@ -200,88 +317,16 @@ cv2.namedWindow('Object detector', cv2.WINDOW_NORMAL)
 # Hold previous object
 last_seen_object = []
 
-q.put("Hello Joe, I am ready to detect objects")
+
+    
+voice.put("Hello Joe, I am ready to detect objects")
+#for frame1 in camera.capture_continuous(rawCapture, format="bgr",use_video_port=True):
+statemachine = VisonState.init()
 #for frame1 in camera.capture_continuous(rawCapture, format="bgr",use_video_port=True):
 while True:
-    #GPIO.setmode(GPIO.BCM)
+    statemachine.execute()
 
-    #GPIO.setup(21, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-    #input_state = GPIO.input(21)
-    # Start timer (for calculating frame rate)
-    t1 = cv2.getTickCount()
-    
-    # Grab frame from video stream
-    frame1 = videostream.read()
-
-    # Acquire frame and resize to expected shape [1xHxWx3]
-    frame = frame1.copy()
-    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    frame_resized = cv2.resize(frame_rgb, (width, height))
-    input_data = np.expand_dims(frame_resized, axis=0)
-
-    # Normalize pixel values if using a floating model (i.e. if model is non-quantized)
-    if floating_model:
-        input_data = (np.float32(input_data) - input_mean) / input_std
-
-    # Perform the actual detection by running the model with the image as input
-    interpreter.set_tensor(input_details[0]['index'],input_data)
-    interpreter.invoke()
-
-    # Retrieve detection results
-    boxes = interpreter.get_tensor(output_details[0]['index'])[0] # Bounding box coordinates of detected objects
-    classes = interpreter.get_tensor(output_details[1]['index'])[0] # Class index of detected objects
-    scores = interpreter.get_tensor(output_details[2]['index'])[0] # Confidence of detected objects
-
-    # set array of valid detections 
-    valid_detections = []
-
-
-    # Loop over all detections and draw detection box if confidence is above minimum threshold
-    for i in range(len(scores)):
-        if ((scores[i] > min_conf_threshold) and (scores[i] <= 1.0)):
-            valid_detections.append(labels[int(classes[i])])
-
-            # Get bounding box coordinates and draw box
-            # Interpreter can return coordinates that are outside of image dimensions, need to force them to be within image using max() and min()
-            ymin = int(max(1,(boxes[i][0] * imH)))
-            xmin = int(max(1,(boxes[i][1] * imW)))
-            ymax = int(min(imH,(boxes[i][2] * imH)))
-            xmax = int(min(imW,(boxes[i][3] * imW)))
-            
-            cv2.rectangle(frame, (xmin,ymin), (xmax,ymax), (10, 255, 0), 2)
-
-            
-            
-            # Draw label
-            object_name = labels[int(classes[i])] # Look up object name from "labels" array using class index
-            label = '%s: %d%%' % (object_name, int(scores[i]*100)) # Example: 'person: 72%'
-            labelSize, baseLine = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2) # Get font size
-            label_ymin = max(ymin, labelSize[1] + 10) # Make sure not to draw label too close to top of window
-            cv2.rectangle(frame, (xmin, label_ymin-labelSize[1]-10), (xmin+labelSize[0], label_ymin+baseLine-10), (255, 255, 255), cv2.FILLED) # Draw white box to put label text in
-            cv2.putText(frame, label, (xmin, label_ymin-7), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2) # Draw label text
-
-    # check to see if person is detected
-    print(last_seen_object)
-    if len(valid_detections) == 0 or (not "person" in valid_detections or "cell phone" in valid_detections):
-        q.put("goodbye.")
-        last_seen_object.clear()    
-        
-    else: 
-        if "cell phone" in valid_detections and not "cell phone" in last_seen_object:
-            q.put("Hello Joe, I see you are on your phone again! You should take a break.")
-        elif "person" in valid_detections and not "person" in last_seen_object:
-            q.put("Hello Joe, Long time no see!")
-                       
-        last_seen_object = valid_detections
-    
-
-    # All the results have been drawn on the frame, so it's time to display it.
-    
-    cv2.imshow('Object detector', frame)
-    # Calculate framerate
-    
-    
-    # Press 'q' to quit
+    # Press 'voice' to quit
     if cv2.waitKey(1) == ord('q'):
         break
     
