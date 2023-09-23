@@ -1,3 +1,4 @@
+
 ######## Webcam Object Detection with Voice TF lite (https://github.com/thyagarajank/Object-Detection-with-Voice-Feedback-using-Raspberry-Pi-4-and-bullseye-OS) #########
 
 # Import packages
@@ -52,25 +53,49 @@ class VisonState:
 
     def transition_sound(self, new_state):
         # get voice lines for the tranistion of states
-        match new_state:
-            case States.Search:
-                pass
-            case States.Found:
-                voice.put("Hello Joe")
-            case States.Phone:
-                voice.put("Get off your phone!")
-            case States.Lost:
-                voice.put("Goodbye Joe")
+        if new_state == States.Search:
+            pass
+        elif new_state == States.Found:
+            voice.put("Hello Joe")
+        elif new_state == States.Phone:
+            voice.put("Get off your phone!")
+        elif new_state == States.Lost:
+            voice.put("Goodbye Joe")
         # update state
-        self.current_state == new_state
+        self.current_state = new_state
         
     def transition(self, new_state):
         self.current_state == new_state
     
     def execute(self):
-        match self:
+        if self.current_state == States.Search:
+            valid_detections = get_detections()
+
+            # only transition when person is present.
+            if "person" in valid_detections:
+                self.transition_sound(States.Found)
+
+        elif self.current_state == States.Found:
+            valid_detections = get_detections()
+
+            # if person holding cell phone
+            if "cell phone" in valid_detections:
+                self.transition_sound(States.Phone)
+
+            # no person, lost
+            elif "person" not in valid_detections:
+                self.transition_sound(States.Lost)
+
+        elif self.current_state == States.Phone:
+            valid_detections = get_detections()
+
+            # no cell phone present
+            if "cell phone" not in valid_detections:
+                # if person, go to person. no sound needed as it was previously used.
+                if "person" in valid_detections:
+                    self.transition(States.Found)
             # keep searching 
-            case States.Search:
+        elif self.current_state == States.Search:
                 valid_detections = get_detections()
                 
                 # only transition when person is present. 
@@ -79,7 +104,7 @@ class VisonState:
                 
                 
                 
-            case States.Found:
+        elif self.current_state == States.Found:
                 valid_detections = get_detections()
                 
                 # if person holding cell phone
@@ -91,7 +116,7 @@ class VisonState:
                     self.transition_sound(States.Lost)
                 
                 
-            case States.Phone:
+        elif self.current_state == States.Phone:
                 valid_detections = get_detections()
                 
                 # no cell phone present
@@ -103,7 +128,7 @@ class VisonState:
                         self.transition(States.Lost)
                 
 
-            case States.Lost:
+        elif self.current_state == States.Lost:
                 valid_detections = get_detections()
                 
                 #go back to looking
@@ -213,7 +238,7 @@ def get_detections():
     
     cv2.imshow('Object detector', frame)
     # Calculate framerate
-    return valid_detections, frame
+    return valid_detections
 
 # Define and parse input arguments
 parser = argparse.ArgumentParser()
@@ -321,7 +346,7 @@ last_seen_object = []
     
 voice.put("Hello Joe, I am ready to detect objects")
 #for frame1 in camera.capture_continuous(rawCapture, format="bgr",use_video_port=True):
-statemachine = VisonState.init()
+statemachine = VisonState()
 #for frame1 in camera.capture_continuous(rawCapture, format="bgr",use_video_port=True):
 while True:
     statemachine.execute()
