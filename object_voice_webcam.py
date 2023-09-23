@@ -13,7 +13,7 @@ from threading import Thread
 import queue
 import importlib.util
 import pyttsx3
-from multiprocessing import Process
+import time
 #import RPi.GPIO as GPIO
 
 #define threads for voice feedback.
@@ -46,13 +46,14 @@ class States:
     Phone = "phone"
     Lost = "lost"
 
+
 #state machine to handle transitions
-class VisonState:
+class VisionState:
     def __init__(self):
         self.current_state = States.Search
 
     def transition_sound(self, new_state):
-        # get voice lines for the tranistion of states
+        # get voice lines for the transition of states
         if new_state == States.Search:
             pass
         elif new_state == States.Found:
@@ -61,78 +62,42 @@ class VisonState:
             voice.put("Get off your phone!")
         elif new_state == States.Lost:
             voice.put("Goodbye Joe")
-        # update state
-        self.current_state = new_state
-        
-    def transition(self, new_state):
-        self.current_state == new_state
-    
-    def execute(self):
-        if self.current_state == States.Search:
-            valid_detections = get_detections()
 
-            # only transition when person is present.
+        # Update the current state and start the transition timer
+        self.current_state = new_state
+
+
+    def transition(self, new_state):
+        self.current_state = new_state
+
+    def execute(self):
+        valid_detections = get_detections()
+
+        if self.current_state == States.Search:
+            # Only transition when a person is present.
             if "person" in valid_detections:
                 self.transition_sound(States.Found)
 
         elif self.current_state == States.Found:
-            valid_detections = get_detections()
-
-            # if person holding cell phone
-            if "cell phone" in valid_detections:
+            # If a person is holding a cell phone, transition to Phone.
+            if "cell phone" in valid_detections :
                 self.transition_sound(States.Phone)
-
-            # no person, lost
+            # If no person is detected, transition to Lost.
             elif "person" not in valid_detections:
                 self.transition_sound(States.Lost)
 
         elif self.current_state == States.Phone:
-            valid_detections = get_detections()
-
-            # no cell phone present
+            # If no cell phone is present, check for a person.
             if "cell phone" not in valid_detections:
-                # if person, go to person. no sound needed as it was previously used.
+                # If a person is detected, transition to Found.
+                #no sound needed as person is already found
                 if "person" in valid_detections:
                     self.transition(States.Found)
-            # keep searching 
-        elif self.current_state == States.Search:
-                valid_detections = get_detections()
-                
-                # only transition when person is present. 
-                if "person" in valid_detections:
-                    self.transition_sound(States.Found)
-                
-                
-                
-        elif self.current_state == States.Found:
-                valid_detections = get_detections()
-                
-                # if person holding cell phone
-                if "cell phone" in valid_detections:
-                    self.transition_sound(States.Found)
-                
-                # no person, lost
-                elif not "person" in valid_detections:
-                    self.transition_sound(States.Lost)
-                
-                
-        elif self.current_state == States.Phone:
-                valid_detections = get_detections()
-                
-                # no cell phone present
-                if not "cell phone" in valid_detections:
-                    #if person, go to person. no sound needed as it was previously used. 
-                    if "Person" in valid_detections:
-                        self.transition(States.Found)
-                    else:
-                        self.transition(States.Lost)
                 
 
         elif self.current_state == States.Lost:
-                valid_detections = get_detections()
-                
-                #go back to looking
-                self.transition(States.Search)
+            self.transition_sound(States.Search)
+
                 
                 
 
@@ -346,10 +311,11 @@ last_seen_object = []
     
 voice.put("Hello Joe, I am ready to detect objects")
 #for frame1 in camera.capture_continuous(rawCapture, format="bgr",use_video_port=True):
-statemachine = VisonState()
+statemachine = VisionState()
 #for frame1 in camera.capture_continuous(rawCapture, format="bgr",use_video_port=True):
 while True:
     statemachine.execute()
+    print(statemachine.current_state)
 
     # Press 'voice' to quit
     if cv2.waitKey(1) == ord('q'):
