@@ -14,6 +14,7 @@ import queue
 import importlib.util
 import pyttsx3
 import time
+import random
 #import RPi.GPIO as GPIO
 
 #define threads for voice feedback.
@@ -51,24 +52,42 @@ class States:
 class VisionState:
     def __init__(self):
         self.current_state = States.Search
+        self.transition_request = []
+        self.voicelines = {
+            "search": [],
+            "found": ["Hello Joe", "Yee haw", "I found you", "I see you", "I found you Joe", "I see you Joe"],
+            "phone": ["Get off your phone!", "Put your phone away!", "Stop using your phone!", "Stop using your phone Joe!"],
+            "lost": ["Goodbye Joe", "Goodbye", "Bye Joe", "Bye", "Goodbye Joe"]
 
-    def transition_sound(self, new_state):
-        # get voice lines for the transition of states
-        if new_state == States.Search:
-            pass
-        elif new_state == States.Found:
-            voice.put("Hello Joe")
-        elif new_state == States.Phone:
-            voice.put("Get off your phone!")
-        elif new_state == States.Lost:
-            voice.put("Goodbye Joe")
+        }
 
-        # Update the current state and start the transition timer
-        self.current_state = new_state
+    def request_transition(self, new_state, type = ""):
+        print(self.transition_request)
+        if self.transition_request == []:
+            self.transition_request.append(new_state)
+        else:
+            # if meets the required amount of requests, transition
+            if len(self.transition_request) == 7: #7 consecutive requests required to change state
+                # Voiceline or not
+                if type == "sound":
+                    # if needs voiceline and voiceline exists, add to queue
+                    if self.voicelines[new_state] != []:
+                        voice.put(random.choice(self.voicelines[new_state]))
+                
+                #transition to new state
+                self.current_state = new_state
+                self.transition_request = []
 
+            #else, add to the request
+            else:
+                #if the same as end of list, add
+                if new_state == self.transition_request[-1]:
+                    self.transition_request.append(new_state)
+                    #else, create new list
+                else:
+                    self.transition_request = []
+                    self.transition_request.append(new_state)
 
-    def transition(self, new_state):
-        self.current_state = new_state
 
     def execute(self):
         valid_detections = get_detections()
@@ -76,15 +95,15 @@ class VisionState:
         if self.current_state == States.Search:
             # Only transition when a person is present.
             if "person" in valid_detections:
-                self.transition_sound(States.Found)
+                self.request_transition(States.Found, "sound")
 
         elif self.current_state == States.Found:
             # If a person is holding a cell phone, transition to Phone.
             if "cell phone" in valid_detections :
-                self.transition_sound(States.Phone)
+                self.request_transition(States.Phone, "sound")
             # If no person is detected, transition to Lost.
             elif "person" not in valid_detections:
-                self.transition_sound(States.Lost)
+                self.request_transition(States.Lost, "sound")
 
         elif self.current_state == States.Phone:
             # If no cell phone is present, check for a person.
@@ -92,11 +111,13 @@ class VisionState:
                 # If a person is detected, transition to Found.
                 #no sound needed as person is already found
                 if "person" in valid_detections:
-                    self.transition(States.Found)
+                    self.request_transition(States.Found)
+                else:
+                    self.request_transition(States.Lost, "sound")
                 
 
         elif self.current_state == States.Lost:
-            self.transition_sound(States.Search)
+            self.request_transition(States.Search, "sound")
 
                 
                 
@@ -309,7 +330,6 @@ last_seen_object = []
 
 
     
-voice.put("Hello Joe, I am ready to detect objects")
 #for frame1 in camera.capture_continuous(rawCapture, format="bgr",use_video_port=True):
 statemachine = VisionState()
 #for frame1 in camera.capture_continuous(rawCapture, format="bgr",use_video_port=True):
