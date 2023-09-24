@@ -15,7 +15,11 @@ import importlib.util
 import pyttsx3
 import time
 import random
-#import RPi.GPIO as GPIO
+from board import SCL, SDA
+import busio
+from PIL import Image, ImageDraw, ImageFont
+import adafruit_ssd1306
+import signal
 
 #define threads for voice feedback.
 #This implementation significantly increases performance. 
@@ -118,14 +122,32 @@ class VisionState:
 
         elif self.current_state == States.Lost:
             self.request_transition(States.Search, "sound")
+        
 
-                
-                
+class Display:
+    def __init__(self):
+        self.i2c = busio.I2C(SCL, SDA)
+        self.disp = adafruit_ssd1306.SSD1306_I2C(128, 32, self.i2c)
+        self.font = ImageFont.load_default()
 
+    def show(self, text):
+        self.disp.fill(0)
+        self.disp.show()
+
+        image = Image.new("1", (self.disp.width, self.disp.height))
+        draw = ImageDraw.Draw(image)
+        
+        draw.text((0, 0), text, font=self.font, fill=255)
+        self.disp.image(image)
+        self.disp.show()
+
+    def stop(self):
+        self.disp.fill(0)
+        self.disp.show()
 
 class VideoStream:
     """Camera object that controls video streaming from the Picamera"""
-    def __init__(self,resolution=(720,1280),framerate=15):
+    def __init__(self,resolution=(480,640),framerate=30):
         # Initialize the PiCamera and the camera image stream
         self.stream = cv2.VideoCapture(0)
         ret = self.stream.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
@@ -226,6 +248,15 @@ def get_detections():
     # Calculate framerate
     return valid_detections
 
+#handle signals for graceful shutdown
+def signal_handler(sig, frame):
+    voice.put("Shutting down")
+    videostream.stop()
+    display.stop()
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, signal_handler)
+
 # Define and parse input arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('--modeldir', help='Folder the .tflite file is located in',
@@ -254,6 +285,9 @@ use_TPU = args.edgetpu
 #initialize queue
 voice = queue.Queue()
 tts_thread = TTSThread(voice)
+
+# INITIALIZE DISPLAY
+display = Display()
 
 
 # Import TensorFlow libraries https://github.com/thyagarajank
@@ -325,17 +359,14 @@ time.sleep(1)
 # Create window
 cv2.namedWindow('Object detector', cv2.WINDOW_NORMAL)
 
-# Hold previous object
-last_seen_object = []
-
-
     
-#for frame1 in camera.capture_continuous(rawCapture, format="bgr",use_video_port=True):
 statemachine = VisionState()
-#for frame1 in camera.capture_continuous(rawCapture, format="bgr",use_video_port=True):
+prev_state = ""
 while True:
     statemachine.execute()
-    print(statemachine.current_state)
+    if statemachine.current_state != prev_state:
+        prev_state = statemachine.current_state
+        display.show(f"Current State: {statemachine.current_state}")
 
     # Press 'voice' to quit
     if cv2.waitKey(1) == ord('q'):
