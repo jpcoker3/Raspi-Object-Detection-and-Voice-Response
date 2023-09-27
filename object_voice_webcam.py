@@ -17,8 +17,8 @@ import busio
 from PIL import Image, ImageDraw, ImageFont
 import adafruit_ssd1306
 import signal
-import VisionState
-import BardController
+from Vision_FSM import VisionState
+from Chatbot_interface import ChatController
 
 #define threads for voice feedback.
 #This implementation significantly increases performance. 
@@ -272,13 +272,17 @@ videostream = VideoStream(resolution=(imW,imH),framerate=30).start()
 time.sleep(1)
 
 # Create window
-cv2.namedWindow('Detection', cv2.WINDOW_NORMAL)
+cv2.namedWindow('Object detector', cv2.WINDOW_NORMAL)
 
     
 statemachine = VisionState(voice)
 prev_state = ""
 while True:
-    statemachine.execute(get_detections())
+    response = statemachine.execute(get_detections())
+    if response != None:
+        voice.put(response)
+
+    #change display
     if statemachine.current_state != prev_state:
         prev_state = statemachine.current_state
         display.show(f"Current State: {statemachine.current_state}")
