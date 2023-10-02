@@ -40,6 +40,7 @@ class STT:
                 text = text.lower()
                 print("Recognized: ", text)
                 
+                
                 return text
             
             

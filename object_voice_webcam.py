@@ -285,7 +285,7 @@ while True:
     #change display
     if statemachine.current_state != prev_state:
         prev_state = statemachine.current_state
-        display.show(f"Current State: {statemachine.current_state}")
+        display.show(f"Current State: {statemachine.current_state}\n Testing")
 
     # Press 'voice' to quit
     if cv2.waitKey(1) == ord('q'):
