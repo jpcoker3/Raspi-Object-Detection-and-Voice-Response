@@ -10,14 +10,15 @@ class States:
     Lost = "lost"
 
 class VisionState:
-    def __init__(self, _voice):
+    def __init__(self, _voice, _display):
         self.voice = _voice
         self.current_state = States.Search
         self.transition_request = []
-        self.speech_to_text = STT()
+        self.speech_to_text = STT(_display)
         self.bot = ChatController()
         self.listen_thread = None
         self.stop_listen_thread = threading.Event()  # Event to signal the listen_thread to stop
+        self.display = _display
 
         self.voicelines = {
             "search": [],
@@ -86,6 +87,8 @@ class VisionState:
         while not self.stop_listen_thread.is_set():
             result = self.speech_to_text.listen()
             print(result)
+            if not "Error" in result:
+                self.display.write_to_third_line(result)
 
             #three options: clark prompt, prompt with question, non prompt. 
             last_word = list(result.split(" "))
@@ -94,6 +97,9 @@ class VisionState:
                 request = self.speech_to_text.take_request()
                 while "Error" in request:
                     request = self.speech_to_text.take_request()
+
+                #Write to display
+                self.display.write_to_third_line(request)
                 print(f"User: {request}")
                 response = self.bot.prompt(request)
                 print(f"Bot: {response}")
@@ -103,10 +109,13 @@ class VisionState:
             elif (last_word[-1] != "clark") and ("clark" in result):
                 keyword_index = last_word.index("clark")
                 request = " ".join(last_word[keyword_index+1:])
+                # write to display
+                self.display.write_to_third_line(request)
                 print(f"User: {request}")
                 response = self.bot.prompt(request)
                 print(f"Bot: {response}")
                 self.voice.put(response)
+
             #irrelevant info
             else:
                 pass

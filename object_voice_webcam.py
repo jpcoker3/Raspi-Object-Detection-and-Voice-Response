@@ -12,10 +12,11 @@ import queue
 import importlib.util
 import pyttsx3
 import time
-from board import SCL, SDA
 import busio
 from PIL import Image, ImageDraw, ImageFont
 import adafruit_ssd1306
+import board
+from adafruit_display_text import label
 import signal
 from Vision_FSM import VisionState
 from Chatbot_interface import ChatController
@@ -45,24 +46,46 @@ class TTSThread(Thread):
 
 class Display:
     def __init__(self):
-        self.i2c = busio.I2C(SCL, SDA)
+        self.i2c = busio.I2C(board.SCL, board.SDA)
         self.disp = adafruit_ssd1306.SSD1306_I2C(128, 32, self.i2c)
+        self.first_line = "Preparing"
+        self.second_line = "Preparing"
+        self.third_line = "Preparing"
         self.font = ImageFont.load_default()
 
-    def show(self, text):
-        self.disp.fill(0)
-        self.disp.show()
+        self.display_lines()
 
+    def write_to_first_line(self, text):
+        self.first_line = text
+        self.display_lines()
+
+    def write_to_second_line(self, text):
+        self.second_line = text
+        self.display_lines()
+    
+    def write_to_third_line(self, text):
+        self.third_line = text
+        self.display_lines()
+
+    def display_lines(self):
+        self._clear_display()
         image = Image.new("1", (self.disp.width, self.disp.height))
         draw = ImageDraw.Draw(image)
-        
-        draw.text((0, 0), text, font=self.font, fill=255)
+        draw.text((0, 0), self.first_line, font=self.font, fill=255)
+        draw.text((0, 8), self.second_line, font=self.font, fill=255)
+        draw.text((0, 16), self.third_line, font=self.font, fill=255)
         self.disp.image(image)
         self.disp.show()
 
-    def stop(self):
+    def _clear_display(self):
         self.disp.fill(0)
         self.disp.show()
+
+    def clear(self):
+        self._clear_display()
+
+    def stop(self):
+        self._clear_display()
 
 class VideoStream:
     """Camera object that controls video streaming from the Picamera"""
@@ -275,7 +298,7 @@ time.sleep(1)
 cv2.namedWindow('Object detector', cv2.WINDOW_NORMAL)
 
     
-statemachine = VisionState(voice)
+statemachine = VisionState(voice, display)
 prev_state = ""
 while True:
     response = statemachine.execute(get_detections())
@@ -285,7 +308,7 @@ while True:
     #change display
     if statemachine.current_state != prev_state:
         prev_state = statemachine.current_state
-        display.show(f"Current State: {statemachine.current_state}\n Testing")
+        display.write_to_first_line(f"Current State: {statemachine.current_state}")
 
     # Press 'voice' to quit
     if cv2.waitKey(1) == ord('q'):

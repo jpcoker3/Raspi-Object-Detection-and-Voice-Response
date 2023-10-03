@@ -20,7 +20,10 @@ class ChatController:
         )
         
 
-    def prompt(self, prompt:str.lower()):
+    def prompt(self, prompt:str):
+        if prompt == "quit":
+            exit()
+
         question_words = ['what', "why"]
         for word in question_words:
             if word in prompt:
