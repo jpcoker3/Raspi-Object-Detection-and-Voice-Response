@@ -25,11 +25,15 @@ from Chatbot_interface import ChatController
 #This implementation significantly increases performance. 
 class TTSThread(Thread):
     def __init__(self, queue):
+        #create voice queue
         Thread.__init__(self)
         self.queue = queue 
         self.daemon = True
         self.start()
+        
+        
     def run(self):
+        #while there is text in the queue, say it
         tts_engine = pyttsx3.init()
         tts_engine.startLoop(False)
         t_running = True
@@ -45,6 +49,7 @@ class TTSThread(Thread):
         tts_engine.endLoop()
 
 class Display:
+    #initialize display
     def __init__(self):
         self.i2c = busio.I2C(board.SCL, board.SDA)
         self.disp = adafruit_ssd1306.SSD1306_I2C(128, 32, self.i2c)
@@ -53,8 +58,9 @@ class Display:
         self.third_line = "Preparing"
         self.font = ImageFont.load_default()
 
-        self.display_lines()
+        self.display_lines() # display preparing message
 
+    #each of the write to lines just changes the text and then calls display lines
     def write_to_first_line(self, text):
         self.first_line = text
         self.display_lines()
@@ -67,6 +73,7 @@ class Display:
         self.third_line = text
         self.display_lines()
 
+    #clear display, write each line, show display
     def display_lines(self):
         self._clear_display()
         image = Image.new("1", (self.disp.width, self.disp.height))
@@ -77,10 +84,12 @@ class Display:
         self.disp.image(image)
         self.disp.show()
 
+    #self explanatory
     def _clear_display(self):
         self.disp.fill(0)
         self.disp.show()
 
+    #these two need to be removed.
     def clear(self):
         self._clear_display()
 
@@ -305,8 +314,9 @@ while True:
     if response != None:
         voice.put(response)
 
-    #change display
+    #change display if state has changed
     if statemachine.current_state != prev_state:
+        #set previous to current
         prev_state = statemachine.current_state
         display.write_to_first_line(f"Current State: {statemachine.current_state}")
 
