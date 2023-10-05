@@ -16,7 +16,8 @@ The primary cost of this build is the Raspberry Pi itself as this model is becom
 [Camera Lens](https://www.amazon.com/dp/B088BLZKRG?psc=1&ref=ppx_yo2ov_dt_b_product_details)\
 [Speaker](https://www.amazon.com/gp/product/B07GJ4GH67/ref=ppx_yo_dt_b_asin_title_o00_s00?ie=UTF8&psc=1)\
 [Fans Taken from this case](https://www.amazon.com/Raspberry-Model-Aluminum-Cooling-Metal/dp/B07VQLBSNC/ref=asc_df_B07VQLBSNC/?tag=hyprod-20&linkCode=df0&hvadid=633001802341&hvpos=&hvnetw=g&hvrand=746087739099635072&hvpone=&hvptwo=&hvqmt=&hvdev=c&hvdvcmdl=&hvlocint=&hvlocphy=9014113&hvtargid=pla-809661377459&psc=1) I believe the fans are 25x25x10 mm\
-[Microphone](https://www.amazon.com/gp/product/B07SNSY64C/ref=ppx_yo_dt_b_asin_title_o00_s01?ie=UTF8&psc=1)\
+[Microphone](https://www.adafruit.com/product/3367)\
+[Audio Amplifier](https://www.adafruit.com/product/2130)\
 [Flex Arm Stand](https://www.amazon.com/dp/B071VR8PWF?psc=1&ref=ppx_yo2ov_dt_b_product_details)\
 [Misc Wires and Cables](https://www.amazon.com/dp/B01LZF1ZSZ?psc=1&ref=ppx_yo2ov_dt_b_product_details)
 
@@ -31,6 +32,6 @@ here is the basic design: \
 ## Pins
 Pi Oled: 1,2,3,5,6. Note that pin 4 is not used. this pin (5v) is not utilized by the OLED and we will use it for other items later. \
 Fans: 4, 14. Power and ground. \
-Speaker: 17, 25. The model speaker linked above is able to run on 3.3v, and as that is the only power pin available we will use it. 
+Speaker: 17, 25. The class D audio amplifier is able to run on 3.3v, and as that is the only power pin available we will use it. 
 
 ![Raspi 4 Pins](https://github.com/jpcoker3/Raspi-Object-Detection-and-Voice-Response/blob/master/images/pinout-corrected.jpg)
