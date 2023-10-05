@@ -23,9 +23,9 @@ The primary cost of this build is the Raspberry Pi itself as this model is becom
 
 
 ## Case Design
-I created a custom case for all these parts to make it seem less thrown together. ( WIP ) 
+I created a custom case in order to make this project more compact. it needs some refinement and there will be more iterations shortly.
 
-here is the basic design: \
+Here is the basic design: \
 ![case front](https://github.com/jpcoker3/Raspi-Object-Detection-and-Voice-Response/blob/master/Case-Model/case_front.png)
 ![case back](https://github.com/jpcoker3/Raspi-Object-Detection-and-Voice-Response/blob/master/Case-Model/case_back.png)
 
@@ -35,3 +35,12 @@ Fans: 4, 14. Power and ground. \
 Speaker: 17, 25. The class D audio amplifier is able to run on 3.3v, and as that is the only power pin available we will use it. 
 
 ![Raspi 4 Pins](https://github.com/jpcoker3/Raspi-Object-Detection-and-Voice-Response/blob/master/images/pinout-corrected.jpg)
+
+
+## Charts
+Finite State Machine for object detection status:\
+![FSM OBJ DETECTION](https://github.com/jpcoker3/Raspi-Object-Detection-and-Voice-Response/blob/master/images/FSM_CAMERA_STATE.png)
+
+
+Finite State Machine for Chatbot:\
+![FSM CHATBOT](https://github.com/jpcoker3/Raspi-Object-Detection-and-Voice-Response/blob/master/images/FSM_CHATBOT_STATES.png)
